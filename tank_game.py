@@ -15,14 +15,15 @@ sprites_dict = {
 
 
 def R(angle):
-    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    return np.array(
+        [[np.cos(angle), -np.sin(angle)],
+         [np.sin(angle), np.cos(angle)]]
+    )
 
 
 class Tank(object):
 
     def __init__(self, sprite_name):
-        self.scene_number = 0
-        self.scene_size = (1350, 854)
         self._config = dict(
             sprite_name=sprite_name,
             hull_center=[82, 47],
@@ -49,7 +50,6 @@ class Tank(object):
         angle = self._config['tank_angle']
         x = np.cos(angle) * step
         y = np.sin(angle) * step
-        #print('XY = ', x, y)
         self._config['center_delta'][0] += x
         self._config['center_delta'][1] += y
         self.moved = True
@@ -85,8 +85,6 @@ class Tank(object):
             Image.AFFINE,
             srt_hull,
             resample=Image.BILINEAR)
-        hull_file.save(images_path + 'results/scene_hull.png')
-        hull_file2.save(images_path + 'results/scene_hull2.png')
 
         srt_gun = self._tank_srt(
             self._config['turret_angle'],
@@ -98,8 +96,6 @@ class Tank(object):
             Image.AFFINE,
             srt_gun,
             resample=Image.BILINEAR)
-        gun_file.save(images_path + 'results/scene_gun.png')
-        gun_file2.save(images_path + 'results/scene_gun2.png')
 
         srt_turret = self._tank_srt(
             self._config['turret_angle'],
@@ -111,8 +107,6 @@ class Tank(object):
             Image.AFFINE,
             srt_turret,
             resample=Image.BILINEAR)
-        turret_file.save(images_path + 'results/turret_gun.png')
-        turret_file2.save(images_path + 'results/turret_gun2.png')
 
         tank_file = Image.composite(gun_file2, hull_file2, gun_file2)
         self.tank_file = Image.composite(turret_file2, tank_file, turret_file2)
@@ -120,128 +114,204 @@ class Tank(object):
         self.moved = False
         return self.tank_file
 
-    def show(self, terrain_file_name):
-        terrain_file = Image.open(terrain_file_name)
-        terrain = terrain_file.load()
 
-        tank_file = self.make_tank()
+class Scene(object):
 
-        tank_file.save(images_path + 'results/scene_tank.png')
+    def __init__(self, terrain_file_name):
+        self.scene_number = 0
+        self.scene_size = (1350, 854)
+        self.terrain_file = Image.open(terrain_file_name)
+        self.scene_file = None
 
-        srt_tank = self._tank_srt(
-            self._config['tank_angle'],
-            np.array(self.scene_size) / 2 + np.array(self._config['center_delta']),
-            self._config['tank_center']
+    def get_scene(self, tank):
+        if self.scene_file and not tank.moved and tank.tank_file:
+            return self.scene_file
+
+        srt_tank = tank._tank_srt(
+            tank._config['tank_angle'],
+            np.array(self.scene_size) / 2 + np.array(tank._config['center_delta']),
+            tank._config['tank_center']
         )
+        tank_file = tank.make_tank()
         tank_file2 = tank_file.transform(
             self.scene_size,
             Image.AFFINE,
             srt_tank,
             resample=Image.BILINEAR)
-        tank_file2.save(images_path + 'results/scene_.png')
 
-        scene_file = Image.composite(tank_file2, terrain_file, tank_file2)
+        self.scene_file = Image.composite(tank_file2, self.terrain_file, tank_file2)
+        return self.scene_file
+
+    def show(self, tank):
+        scene_file = self.get_scene(tank)
         scene_file.save(images_path + 'results/scene_{0:0>9}.png'.format(
             self.scene_number
         ))
 
         self.scene_number += 1
 
-tank0 = TankNew(sprite_name='tank0')
+
+tank0 = Tank(sprite_name='tank0')
+scene = Scene(textures_dict['dirt_road'])
 
 #tank0.turn(45)
 #tank0.show(textures_dict['dirt_road'])
 #sys.stdout.flush()
 
 # Stay
-for i in range(10):
+print('Stay...', end='')
+for i in range(50):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Turn
+print('Turn...', end='')
 for i in range(90):
     print('#', end='')
     tank0.turn(0.5)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Go
+print('Go.....', end='')
 for i in range(30):
     print('#', end='')
     tank0.move(i * 0.3)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
-for i in range(10):
+print('Stay...', end='')
+for i in range(30):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Turn
+print('Turn...', end='')
 for i in range(90):
     print('#', end='')
     tank0.turn(-0.5)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
-for i in range(30):
+print('Stay...', end='')
+for i in range(50):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Go
+print('Go.....', end='')
 for i in range(30):
     print('#', end='')
     tank0.move(i * 0.3)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
-for i in range(30):
+print('Stay...', end='')
+for i in range(50):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Turn the turret
+print('Turret.', end='')
 for i in range(90):
     print('#', end='')
     tank0.turn_turret(1)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
-for i in range(30):
+print('Stay...', end='')
+for i in range(50):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Turn
+print('Turn...', end='')
 for i in range(180):
     print('#', end='')
     tank0.turn(0.5)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
-for i in range(30):
+print('Stay...', end='')
+for i in range(50):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Go north
+print('Go.....', end='')
 for i in range(20):
     print('#', end='')
     tank0.move(i * 0.3)
-    tank0.show(textures_dict['dirt_road'])
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
 # Stay
+print('Stay...', end='')
+for i in range(50):
+    print('#', end='')
+    scene.show(tank0)
+    sys.stdout.flush()
+print('')
+
+# Combined move
+print('Combo..', end='')
 for i in range(90):
     print('#', end='')
-    tank0.show(textures_dict['dirt_road'])
+    tank0.turn(0.5)
+    tank0.turn_turret(-1)
+    tank0.move(-i * 0.1)
+    scene.show(tank0)
     sys.stdout.flush()
+print('')
 
+# Stay
+print('Stay...', end='')
+for i in range(120):
+    print('#', end='')
+    scene.show(tank0)
+    sys.stdout.flush()
+print('')
+
+# Combined move
+print('Combo..', end='')
+for i in range(90):
+    print('#', end='')
+    tank0.turn(0.5)
+    step = 0.1 + 0.2 * (i / 90)
+    tank0.move(i * step)
+    scene.show(tank0)
+    sys.stdout.flush()
+print('')
+
+# Stay
+print('Stay...', end='')
+for i in range(50):
+    print('#', end='')
+    scene.show(tank0)
+    sys.stdout.flush()
+print('')
 
