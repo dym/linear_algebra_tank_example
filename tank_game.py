@@ -13,31 +13,37 @@ sprites_dict = {
     'tank0_turret': images_path + 'sprites/tank_amazon_green/Amazon Green Turret.png',
 }
 
+
 def R(angle):
     return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
 
-def tank_rt(angle, center1, center2):
-    r = R(-angle)
-    tr = np.array([center2 - (r.dot(center1))]).T
-    m = np.hstack((r, tr))
-    m1 = np.vstack([m, np.array([0, 0, 1])])
-    m2 = np.linalg.inv(m1)
-    #print(m2)
-    return m2
 
 class Tank(object):
 
     def __init__(self, sprite_name):
         self.scene_number = 0
+        self.scene_size = (1350, 854)
         self._config = dict(
             sprite_name=sprite_name,
             hull_center=[82, 47],
-            turret_center=[36, 35],
-            gun_center=[-25, 15],
-            center_delta=np.array([0, 0]),
+            turret_center=[46, 35],
+            gun_center=[-15, 15],
+            tank_center=np.array([150, 150]),
+            center_delta=[0, 0],
             tank_angle=0,
             turret_angle=0,
         )
+        self.moved = True
+        self.tank_file = None
+
+    @staticmethod
+    def _tank_srt(angle, center1, center2):
+        r = R(-angle)
+        tr = np.array([center2 - (r.dot(center1))]).T
+        m = np.hstack((r, tr))
+        m1 = np.vstack([m, np.array([0, 0, 1])])
+        m2 = np.linalg.inv(m1)
+        return np.asarray(m).reshape(-1)
 
     def move(self, step):
         angle = self._config['tank_angle']
@@ -46,17 +52,21 @@ class Tank(object):
         #print('XY = ', x, y)
         self._config['center_delta'][0] += x
         self._config['center_delta'][1] += y
+        self.moved = True
 
     def turn(self, angle_degrees):
         self._config['tank_angle'] += np.radians(angle_degrees)
+        self.moved = True
 
     def turn_turret(self, angle_degrees):
         self._config['turret_angle'] += np.radians(angle_degrees)
+        self.moved = True
 
-    def show(self, terrain_file_name):
-        terrain_file = Image.open(terrain_file_name)
-        terrain = terrain_file.load()
+    def make_tank(self):
+        if not self.moved and self.tank_file:
+            return self.tank_file
 
+        tank_size = (340, 340)
         sprite_name = self._config['sprite_name']
         gun_file = Image.open(sprites_dict['{0}_gun'.format(sprite_name)])
         hull_file = Image.open(sprites_dict['{0}_hull'.format(sprite_name)])
@@ -65,75 +75,83 @@ class Tank(object):
         hull = hull_file.load()
         turret = turret_file.load()
 
-        dshape = terrain_file.size
-
-        terrain_center = np.array([int(dshape[0] / 2), int(dshape[1] / 2)])
-        rt_hull = tank_rt(
-            self._config['tank_angle'],
-            terrain_center - self._config['center_delta'],
+        srt_hull = self._tank_srt(
+            0,
+            self._config['tank_center'],
             self._config['hull_center']
         )
-        W, H = hull_file.size
-        for x2 in range(W):
-            for y2 in range(H):
-                x1, y1, _ = map(int, rt_hull.dot(np.array([x2, y2, 1])))
-                if x1 > 0 and x1 < dshape[0] and y1 > 0 and y1 < dshape[1]:
-                    (r1, g1, b1) = terrain[x1, y1]
-                    (r2, g2, b2, a) = hull[x2, y2]
-                    coef = a / 255
-                    val = (
-                        int(r2 * coef + r1 * (1 - coef)),
-                        int(g2 * coef + g1 * (1 - coef)),
-                        int(b2 * coef + b1 * (1 - coef)),
-                    )
-                    terrain[x1, y1] = val
+        hull_file2 = hull_file.transform(
+            tank_size,
+            Image.AFFINE,
+            srt_hull,
+            resample=Image.BILINEAR)
+        hull_file.save(images_path + 'results/scene_hull.png')
+        hull_file2.save(images_path + 'results/scene_hull2.png')
 
-        rt_gun = tank_rt(
-            self._config['tank_angle'] + self._config['turret_angle'],
-            terrain_center - self._config['center_delta'],
+        srt_gun = self._tank_srt(
+            self._config['turret_angle'],
+            self._config['tank_center'],
             self._config['gun_center']
         )
-        W, H = gun_file.size
-        for x2 in range(W):
-            for y2 in range(H):
-                x1, y1, _ = map(int, rt_gun.dot(np.array([x2, y2, 1])))
-                if x1 > 0 and x1 < dshape[0] and y1 > 0 and y1 < dshape[1]:
-                    (r1, g1, b1,) = terrain[x1, y1]
-                    (r2, g2, b2, a) = gun[x2, y2]
-                    coef = a / 255
-                    val = (
-                        int(r2 * coef + r1 * (1 - coef)),
-                        int(g2 * coef + g1 * (1 - coef)),
-                        int(b2 * coef + b1 * (1 - coef)),
-                    )
-                    terrain[x1, y1] = val
+        gun_file2 = gun_file.transform(
+            tank_size,
+            Image.AFFINE,
+            srt_gun,
+            resample=Image.BILINEAR)
+        gun_file.save(images_path + 'results/scene_gun.png')
+        gun_file2.save(images_path + 'results/scene_gun2.png')
 
-        rt_turret = tank_rt(
-            self._config['tank_angle'] + self._config['turret_angle'],
-            terrain_center - self._config['center_delta'],
+        srt_turret = self._tank_srt(
+            self._config['turret_angle'],
+            self._config['tank_center'],
             self._config['turret_center']
         )
-        W, H = turret_file.size
-        for x2 in range(W):
-            for y2 in range(H):
-                x1, y1, _ = map(int, rt_turret.dot(np.array([x2, y2, 1])))
-                if x1 > 0 and x1 < dshape[0] and y1 > 0 and y1 < dshape[1]:
-                    (r1, g1, b1) = terrain[x1, y1]
-                    (r2, g2, b2, a) = turret[x2, y2]
-                    coef = a / 255
-                    val = (
-                        int(r2 * coef + r1 * (1 - coef)),
-                        int(g2 * coef + g1 * (1 - coef)),
-                        int(b2 * coef + b1 * (1 - coef)),
-                    )
-                    terrain[x1, y1] = val
-        terrain_file.save(images_path + 'results/scene_{0:0>9}.png'.format(
+        turret_file2 = turret_file.transform(
+            tank_size,
+            Image.AFFINE,
+            srt_turret,
+            resample=Image.BILINEAR)
+        turret_file.save(images_path + 'results/turret_gun.png')
+        turret_file2.save(images_path + 'results/turret_gun2.png')
+
+        tank_file = Image.composite(gun_file2, hull_file2, gun_file2)
+        self.tank_file = Image.composite(turret_file2, tank_file, turret_file2)
+
+        self.moved = False
+        return self.tank_file
+
+    def show(self, terrain_file_name):
+        terrain_file = Image.open(terrain_file_name)
+        terrain = terrain_file.load()
+
+        tank_file = self.make_tank()
+
+        tank_file.save(images_path + 'results/scene_tank.png')
+
+        srt_tank = self._tank_srt(
+            self._config['tank_angle'],
+            np.array(self.scene_size) / 2 + np.array(self._config['center_delta']),
+            self._config['tank_center']
+        )
+        tank_file2 = tank_file.transform(
+            self.scene_size,
+            Image.AFFINE,
+            srt_tank,
+            resample=Image.BILINEAR)
+        tank_file2.save(images_path + 'results/scene_.png')
+
+        scene_file = Image.composite(tank_file2, terrain_file, tank_file2)
+        scene_file.save(images_path + 'results/scene_{0:0>9}.png'.format(
             self.scene_number
         ))
-        self.scene_number += 1
-        
 
-tank0 = Tank(sprite_name='tank0')
+        self.scene_number += 1
+
+tank0 = TankNew(sprite_name='tank0')
+
+#tank0.turn(45)
+#tank0.show(textures_dict['dirt_road'])
+#sys.stdout.flush()
 
 # Stay
 for i in range(10):
@@ -151,7 +169,7 @@ for i in range(90):
 # Go
 for i in range(30):
     print('#', end='')
-    tank0.move(-i * 0.3)
+    tank0.move(i * 0.3)
     tank0.show(textures_dict['dirt_road'])
     sys.stdout.flush()
 
@@ -177,7 +195,7 @@ for i in range(30):
 # Go
 for i in range(30):
     print('#', end='')
-    tank0.move(-i * 0.3)
+    tank0.move(i * 0.3)
     tank0.show(textures_dict['dirt_road'])
     sys.stdout.flush()
 
@@ -216,7 +234,7 @@ for i in range(30):
 # Go north
 for i in range(20):
     print('#', end='')
-    tank0.move(-i * 0.3)
+    tank0.move(i * 0.3)
     tank0.show(textures_dict['dirt_road'])
     sys.stdout.flush()
 
